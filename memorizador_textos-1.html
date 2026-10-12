@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Memoriza</title>
+<style>
+:root{--a:#5148e5;--bg:#f4f5fb;--ink:#20243a;--muted:#687087;--line:#e1e4ef}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,Arial}header{background:linear-gradient(130deg,#29246e,#6258ed);color:white;padding:28px 18px}header div,main{max-width:850px;margin:auto}h1{margin:0;font-size:2.2rem}header p{margin:4px 0 0;color:#e8e7ff}main{padding:18px 13px 40px}.card{background:white;border:1px solid var(--line);border-radius:15px;padding:18px;margin-bottom:14px;box-shadow:0 5px 18px #15184708}h2{margin:0 0 8px;font-size:1.25rem}.muted{color:var(--muted)}textarea,select{width:100%;padding:12px;border:1px solid #cbd0e0;border-radius:10px;font:inherit;background:white;color:var(--ink)}textarea{min-height:180px;resize:vertical}label{display:block;font-weight:700;margin:12px 0 6px}button{border:0;border-radius:10px;background:var(--a);color:white;padding:11px 15px;font-weight:750;font-size:15px;cursor:pointer}.secondary{background:#e9eaf4;color:#30344b}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.hidden{display:none!important}.stats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.stat{background:#f5f5ff;padding:10px 14px;border-radius:10px;min-width:100px}.stat b{display:block;font-size:1.25rem}.stat small{color:var(--muted)}.bar{height:8px;background:#e7e8f1;border-radius:20px;overflow:hidden;margin:10px 0}.bar span{display:block;background:var(--a);height:100%;width:0}.chunk{white-space:pre-wrap;font-size:1.1rem;background:#f9f8ff;border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}.notice{padding:12px;border-radius:10px;background:#efefff;margin-top:12px}.good{background:#eaf8ef;color:#17643a}.bad{background:#fff0ee;color:#a3261d}.muted small{font-size:.9rem}.footer{text-align:center;color:var(--muted);font-size:.85rem;padding-bottom:24px}@media(max-width:500px){.card{padding:14px}.actions button{flex:1}}
+</style></head><body>
+<header><div><h1>Memoriza</h1><p>Aprende un texto en menos tiempo con recuerdo activo y fragmentos cortos.</p></div></header>
+<main>
+<section id="setup" class="card"><h2>1. Introduce tu texto</h2><p class="muted">Pega un discurso, diálogo o texto. La página lo divide y te ayuda a recordarlo paso a paso.</p>
+<label for="txt">Texto que quieres memorizar</label><textarea id="txt" placeholder="Pega aquí tu texto..."></textarea>
+<div class="stats"><div class="stat"><b id="words">0</b><small>palabras</small></div><div class="stat"><b id="sentences">0</b><small>oraciones aprox.</small></div><div class="stat"><b id="chunks">0</b><small>fragmentos</small></div></div>
+<label for="size">Tamaño de fragmentos</label><select id="size"><option value="1">Muy cortos: 1 oración</option><option value="2" selected>Medios: 2 oraciones</option><option value="3">Largos: 3 oraciones</option><option value="4">Muy largos: 4 oraciones</option></select>
+<label for="speechLang">Idioma para el reconocimiento de voz</label><select id="speechLang"><option value="en-US" selected>Inglés</option><option value="es-MX">Español</option></select>
+<label for="mode">Método de práctica</label><select id="mode"><option value="cloze">Completar palabras ocultas (recomendado)</option><option value="type">Escribir de memoria</option><option value="flash">Tarjeta: recordar en voz alta</option></select>
+<div class="actions"><button id="start">Crear práctica</button></div></section>
+<section id="practice" class="hidden"><div class="card"><div id="progressText" class="muted">Fragmento 1</div><div class="bar"><span id="bar"></span></div><h2 id="title">Aprende este fragmento</h2><p id="desc" class="muted">Lee en voz alta dos veces. Luego intenta recordarlo sin mirar.</p><div id="area"></div><div id="feedback" aria-live="polite"></div><div class="actions" id="actions"></div></div>
+<div class="card"><b>La técnica:</b><p class="muted">Lee → tapa o esconde → recuerda sin mirar → comprueba → repite solo lo que olvidaste. Al terminar, intenta decir todo el texto seguido.</p></div></section>
+<section id="summary" class="hidden"><div class="card"><h2>¡Terminaste esta ronda!</h2><div class="stats"><div class="stat"><b id="good">0</b><small>fragmentos dominados</small></div><div class="stat"><b id="total">0</b><small>fragmentos practicados</small></div><div class="stat"><b id="percent">0%</b><small>avance estimado</small></div></div><p id="message"></p><h2>Repaso final</h2><p class="muted">Intenta recitar cada fragmento antes de mostrar el texto.</p><div id="review"></div><div class="actions"><button id="weak">Practicar los difíciles</button><button id="again" class="secondary">Repetir todo</button><button id="edit" class="secondary">Editar texto</button></div></div></section>
+</main><div class="footer">Funciona sin internet. El texto se queda en tu navegador y no se envía a ningún servidor.</div>
+<script>
+const $=x=>document.getElementById(x);let all=[],round=[],idx=0,phase='learn',method='cloze',ratings=[],hard=[],revealed=false;
+function split(t,n){let ss=(t.match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[]).map(x=>x.trim()).filter(Boolean),a=[];for(let i=0;i<ss.length;i+=n)a.push(ss.slice(i,i+n).join(' '));if(!a.length&&t.trim())a=[t.trim()];return a}
+function count(){let t=$('txt').value,s=split(t,+$('size').value);$('words').textContent=(t.trim().match(/\S+/g)||[]).length;$('sentences').textContent=(t.match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[]).filter(x=>x.trim()).length;$('chunks').textContent=t.trim()?s.length:0}
+$('txt').addEventListener('input',count);$('size').addEventListener('change',count);
+function show(id){['setup','practice','summary'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
+$('start').onclick=()=>begin(false);
+function begin(onlyHard){if(!$('txt').value.trim()){$('txt').focus();return}all=split($('txt').value.trim(),+$('size').value);round=onlyHard&&hard.length?hard.map(i=>all[i]):[...all];method=$('mode').value;idx=0;phase='learn';ratings=[];revealed=false;show('practice');render()}
+function btn(label,fn,cls=''){let b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=fn;$('actions').append(b)}
+function render(){ $('actions').innerHTML='';$('area').innerHTML='';$('feedback').className='';$('feedback').textContent='';$('progressText').textContent=`Fragmento ${idx+1} de ${round.length}`;$('bar').style.width=((idx+1)/round.length*100)+'%';let t=round[idx];
+if(phase==='learn'){$('title').textContent='Lee y comprende';$('desc').textContent='Lee el fragmento en voz alta dos veces. Piensa en la idea, no solo en las palabras.';let d=document.createElement('div');d.className='chunk';d.textContent=t;$('area').append(d);btn('Ya lo leí — quiero intentarlo',()=>{phase='test';revealed=false;render()})}
+else{$('title').textContent=method==='flash'?'Recuerda sin mirar':method==='type'?'Escribe lo que recuerdas':'Completa los huecos';$('desc').textContent=method==='flash'?'Di el fragmento en voz alta antes de revelar la respuesta.':method==='type'?'Escribe todo lo que recuerdes sin volver a mirar el original.':'Intenta reconstruir las palabras que faltan, preferiblemente en voz alta.';
+if(method==='type'){let ta=document.createElement('textarea');ta.placeholder='Escribe aquí lo que recuerdas o dicta con tu voz...';ta.id='answer';$('area').append(ta);
+btn('🎙 Dictar por voz',()=>dictate(),'secondary');
+btn('Comparar con el original',()=>{let d=document.createElement('div');d.className='chunk';d.textContent='Original: '+t+'\n\nTu intento: '+$('answer').value;$('area').append(d);$('actions').innerHTML='';btn('Lo recordé bien',()=>rate(true));btn('Me faltaron partes',()=>rate(false),'secondary')})}
+else if(method==='flash'){let d=document.createElement('div');d.className='chunk';d.textContent=revealed?t:'¿Qué decía este fragmento? Di el texto en voz alta.';$('area').append(d);if(!revealed)btn('Mostrar respuesta',()=>{revealed=true;render()});else ratingsButtons()}
+else{let words=t.split(/(\s+)/),count=0,d=document.createElement('div');d.className='chunk';words.forEach(w=>{if(!w.trim()){d.append(document.createTextNode(w));return}count++;let s=document.createElement('span');let hide=!revealed&&count%3!==0;s.textContent=hide?w.replace(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g,'_'):w;d.append(s)});$('area').append(d);if(!revealed)btn('Mostrar texto completo',()=>{revealed=true;render()});else ratingsButtons()}}
+ addBackButton();
+}
+function addBackButton(){
+ const b=document.createElement('button');b.textContent='← Regresar';b.className='secondary';
+ b.onclick=()=>{
+  if(phase==='test'){phase='learn';revealed=false;render();return}
+  if(idx>0){idx--;phase='test';revealed=true;render();return}
+  show('setup');
+ };
+ $('actions').append(b);
+}
+function dictate(){
+ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SpeechRecognition){$('feedback').className='notice bad';$('feedback').textContent='Tu navegador no permite reconocimiento de voz. Prueba con Google Chrome y permite el acceso al micrófono.';return}
+ const recognition=new SpeechRecognition();
+ recognition.lang=$('speechLang').value;recognition.continuous=true;recognition.interimResults=true;
+ const field=$('answer');const initial=field.value.trim();let finalText='';
+ $('feedback').className='notice';$('feedback').textContent='Escuchando… habla con claridad. Cuando termines, pulsa Detener dictado.';
+ const stop=document.createElement('button');stop.textContent='Detener dictado';stop.className='danger';
+ let stopped=false;stop.onclick=()=>{stopped=true;recognition.stop();stop.remove()};
+ $('actions').prepend(stop);
+ recognition.onresult=(event)=>{let interim='';for(let i=event.resultIndex;i<event.results.length;i++){const transcript=event.results[i][0].transcript;if(event.results[i].isFinal)finalText+=transcript+' ';else interim+=transcript}
+  field.value=(initial?initial+' ':'')+finalText+interim;
+ };
+ recognition.onerror=(event)=>{$('feedback').className='notice bad';$('feedback').textContent='No se pudo reconocer la voz ('+event.error+'). Revisa el permiso del micrófono e inténtalo de nuevo.';stop.remove()};
+ recognition.onend=()=>{stop.remove();if(!stopped){$('feedback').className='notice';$('feedback').textContent='Dictado terminado. Revisa el texto reconocido y compáralo con el original.'}};
+ recognition.start();
+}
+function ratingsButtons(){let p=document.createElement('p');p.className='muted';p.textContent='Sé honesto: ¿lo recordaste sin mirar?';$('area').append(p);btn('Sí, lo recordé',()=>rate(true));btn('Necesito repetirlo',()=>rate(false),'secondary')}
+function rate(ok){ratings[idx]=ok;if(!ok&&!hard.includes(idx))hard.push(idx);if(ok)hard=hard.filter(x=>x!==idx);idx++;if(idx>=round.length)finish();else{phase='learn';revealed=false;render()}}
+function finish(){show('summary');let n=round.length,g=ratings.filter(Boolean).length,p=n?Math.round(g/n*100):0;$('good').textContent=g;$('total').textContent=n;$('percent').textContent=p+'%';$('message').textContent=p===100?'¡Muy bien! Para comprobar que quedó en tu memoria, intenta repetirlo otra vez dentro de 10–20 minutos.':p>=70?'Buen avance. Repite los fragmentos difíciles y después intenta decir todo el texto seguido.':'Sigue en bloques cortos: recuerda, comprueba y repite. No intentes aprender todo de golpe.';$('review').innerHTML='';round.forEach((t,i)=>{let d=document.createElement('div');d.className='chunk';let h=document.createElement('b');h.textContent='Fragmento '+(i+1)+(ratings[i]?' ✓':' ↻');let p=document.createElement('p');p.textContent=t;p.className='hidden';let b=document.createElement('button');b.textContent='Mostrar / ocultar';b.className='secondary';b.onclick=()=>p.classList.toggle('hidden');d.append(h,p,b);$('review').append(d)})}
+$('weak').onclick=()=>{if(!hard.length){$('message').textContent='No marcaste fragmentos difíciles. Puedes repetir todo para comprobar tu memoria.';return}begin(true)};$('again').onclick=()=>begin(false);$('edit').onclick=()=>show('setup');count();
+</script></body></html>
